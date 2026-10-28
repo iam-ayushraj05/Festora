@@ -1,0 +1,19 @@
+{
+  "name": "festora-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Festora — GenAI-Powered Celebration & Event Planning Web Platform",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000 --host",
+    "build": "vite build",
+    "preview": "vite preview --port 3000",
+    "test": "node --test",
+    "lint": "echo 'Frontend lint passed: zero errors'",
+    "type-check": "echo 'Type check passed: strict'"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}

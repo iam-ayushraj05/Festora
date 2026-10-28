@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Festora — GenAI-Powered Celebration & Event Planner</title>
+  <meta name="description" content="Organize weddings, milestone birthdays, and community festivals with Festora's GenAI planning assistant, fixed-precision budgets, conflict-detecting timelines, and vendor checklists.">
+  <!-- Google Fonts: Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/styles/festora.css">
+</head>
+<body>
+  <!-- Accessibility Skip Link -->
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header" role="banner">
+    <a href="#" class="brand" aria-label="Festora Home">
+      <div class="brand-icon" aria-hidden="true">✨</div>
+      <div>
+        <span class="brand-title">Festora</span>
+        <span class="brand-badge">GenAI Planner</span>
+      </div>
+    </a>
+
+    <!-- Active Event Switcher -->
+    <div class="event-selector-bar" role="region" aria-label="Active Event Selection">
+      <span style="font-size: 0.95rem;">🎉</span>
+      <label for="eventSelect" class="sr-only" style="display:none;">Select Event</label>
+      <select id="eventSelect" class="event-select-dropdown" aria-label="Select Active Event">
+        <option value="event-1">Anya's 30th Birthday Soirée (Birthday)</option>
+        <option value="event-2">Marcus & Elena's Royal Wedding (Wedding)</option>
+        <option value="event-3">Austin Tech Community Festival (Community)</option>
+      </select>
+    </div>
+
+    <!-- Actions -->
+    <div class="nav-actions">
+      <button id="btnNewEvent" class="btn btn-secondary btn-sm" aria-haspopup="dialog">
+        <span>+</span> New Event
+      </button>
+      <button id="btnSimulateRSVP" class="btn btn-secondary btn-sm" title="Simulate public guest RSVP submission">
+        <span>✉️</span> Guest RSVP Portal
+      </button>
+      <button id="btnPrintPlan" class="btn btn-primary btn-sm">
+        <span>📄</span> Export Plan
+      </button>
+    </div>
+  </header>
+
+  <!-- Hero Glass Card -->
+  <section class="event-hero" aria-labelledby="heroTitle">
+    <div class="hero-glass-card">
+      <div class="hero-header-row">
+        <div>
+          <span id="heroTypeBadge" class="event-type-pill">🎂 Milestone Birthday</span>
+          <h1 id="heroTitle" class="hero-title">Anya's 30th Birthday Soirée</h1>
+          <div class="hero-meta">
+            <span>📍 <strong id="heroVenue">The Sky Lounge at Hudson Yards</strong></span>
+            <span>📅 <strong id="heroDate">Nov 18, 2026</strong></span>
+            <span>⏳ <strong id="heroCountdown">21 days remaining</strong></span>
+            <span id="heroStatusBadge" class="badge badge-confirmed">Confirmed</span>
+          </div>
+        </div>
+
+        <button id="btnTriggerAICheck" class="btn btn-ai">
+          <span>✨</span> Ask GenAI Assistant
+        </button>
+      </div>
+
+      <!-- KPI Grid -->
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon-box">💰</div>
+          <div>
+            <div id="kpiBudgetSpent" class="kpi-value">$3,300 / $8,500</div>
+            <div class="kpi-label">Budget Spent (38.8%)</div>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon-box purple">👥</div>
+          <div>
+            <div id="kpiGuests" class="kpi-value">6 Confirmed</div>
+            <div class="kpi-label">RSVP Status (8 Invited)</div>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon-box emerald">⏱️</div>
+          <div>
+            <div id="kpiTimeline" class="kpi-value">6 Timeline Runs</div>
+            <div class="kpi-label" id="kpiConflictStatus">0 Schedule Conflicts</div>
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="kpi-icon-box rose">🤝</div>
+          <div>
+            <div id="kpiVendors" class="kpi-value">2 Booked</div>
+            <div class="kpi-label">Vendors & Quotes</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Tabs Bar -->
+  <nav class="tabs-container" aria-label="Planner Navigation">
+    <div class="tabs-nav" role="tablist">
+      <button class="tab-btn active" role="tab" aria-selected="true" data-tab="tab-ai">
+        <span>🪄</span> GenAI Planning Studio
+      </button>
+      <button class="tab-btn" role="tab" aria-selected="false" data-tab="tab-budget">
+        <span>💵</span> Budget & Expenses
+      </button>
+      <button class="tab-btn" role="tab" aria-selected="false" data-tab="tab-timeline">
+        <span>⏱️</span> Timeline & Run-of-Show
+      </button>
+      <button class="tab-btn" role="tab" aria-selected="false" data-tab="tab-vendors">
+        <span>🤝</span> Vendors & Quotes
+      </button>
+      <button class="tab-btn" role="tab" aria-selected="false" data-tab="tab-guests">
+        <span>👥</span> Guest List & RSVPs
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content Wrapper -->
+  <main id="main-content" class="main-wrapper" role="main">
+
+    <!-- =========================================================================
+         TAB 1: GenAI Planning Studio
+         ========================================================================= -->
+    <section id="tab-ai" class="tab-panel active" role="tabpanel" aria-label="GenAI Studio">
+      <!-- AI Prompt Bar -->
+      <div class="ai-prompt-bar">
+        <div class="panel-header" style="margin-bottom: 0.75rem;">
+          <div>
+            <h2 class="panel-title">✨ GenAI Personalized Celebration Studio</h2>
+            <p class="panel-subtitle">Generate custom themes, color palettes, cocktail menus, budget allocations, and run-of-show schedules instantly.</p>
+          </div>
+          <button id="btnRegenerateAI" class="btn btn-ai btn-sm">
+            <span>⚡</span> Re-Synthesize Ideas
+          </button>
+        </div>
+
+        <!-- Quick Prompt Chips -->
+        <div class="ai-chips-row">
+          <button class="ai-chip" data-prompt="Suggest budget-saving tips">💡 Budget-saving tips</button>
+          <button class="ai-chip" data-prompt="Rain and weather backup plan">☔ Rain contingency</button>
+          <button class="ai-chip" data-prompt="RSVP reminder message template">✉️ RSVP reminder message</button>
+          <button class="ai-chip" data-prompt="Personalized speech outline">🎤 Speech & Toast outline</button>
+          <button class="ai-chip" data-prompt="Unique interactive party games">🎲 Interactive party games</button>
+        </div>
+
+        <!-- AI Chat Copilot Input -->
+        <div style="display: flex; gap: 0.75rem; margin-top: 1.25rem;">
+          <input type="text" id="aiCopilotInput" class="form-input" placeholder="Ask Festora AI anything... e.g. 'How can I save $1000 on florals without losing elegance?'" aria-label="Ask Festora AI">
+          <button id="btnSendCopilot" class="btn btn-ai" style="white-space: nowrap;">Ask Festora AI</button>
+        </div>
+
+        <!-- Copilot Response Bubble -->
+        <div id="aiCopilotResponseBox" style="display: none; margin-top: 1.25rem; background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.35); border-radius: var(--radius-md); padding: 1.25rem;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
+            <strong style="color: #c4b5fd; font-size: 0.92rem;">Festora AI Assistant</strong>
+            <span style="font-size: 0.74rem; color: var(--text-muted);">Verified Rule-Based & Generative Engine</span>
+          </div>
+          <div id="aiCopilotResponseText" style="font-size: 0.95rem; line-height: 1.6; white-space: pre-line;"></div>
+        </div>
+      </div>
+
+      <!-- AI Generated Result Cards -->
+      <div class="ai-results-grid">
+        <!-- Theme & Palette Card -->
+        <div class="ai-card">
+          <span class="ai-card-badge">Personalized Theme</span>
+          <h3 class="ai-card-title">🎨 <span id="aiThemeTitle">Neon Starlight Glow & Cocktail Soirée</span></h3>
+          <p id="aiThemeDecor" style="color: var(--text-secondary); font-size: 0.92rem; line-height: 1.5; margin-bottom: 1rem;">
+            Custom neon acrylic signage, interactive LED polaroid booth, floating geometric floral centerpieces with micro-lights, and metallic ambient accents.
+          </p>
+
+          <h4 style="font-size: 0.82rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 0.5rem;">Curated Color Palette</h4>
+          <div id="aiPaletteContainer" class="palette-row">
+            <!-- Swatches inserted by JS -->
+          </div>
+
+          <h4 style="font-size: 0.82rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 0.35rem;">Signature Cocktails</h4>
+          <p id="aiCocktails" style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+            Electric Sunset Punch & Smoky Mezcal Paloma with torched rosemary.
+          </p>
+
+          <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: var(--radius-sm); padding: 0.85rem; font-size: 0.85rem; color: #fde68a;">
+            💡 <strong>AI Cost Saving Tip:</strong> <span id="aiCostTip">Opt for an artisan grazing table and passed sliders instead of formal plated courses to save ~25% on food staffing.</span>
+          </div>
+        </div>
+
+        <!-- AI Custom Invitation Copy -->
+        <div class="ai-card">
+          <span class="ai-card-badge">Invitation Copy</span>
+          <h3 class="ai-card-title">💌 Bespoke Invitation Wording</h3>
+          <blockquote id="aiInviteCopy" style="background: rgba(12, 18, 32, 0.7); border-left: 3px solid var(--accent-gold); padding: 1.15rem; font-style: italic; color: #f8fafc; font-size: 0.95rem; line-height: 1.6; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-bottom: 1.25rem;">
+            "Together under midnight skies, come celebrate 30 years of laughter, triumphs, and unforgettable memories! Let's raise a glass to the golden decade ahead."
+          </blockquote>
+          <button id="btnCopyInvite" class="btn btn-secondary btn-sm" style="width: 100%;">
+            <span>📋</span> Copy Invitation Copy
+          </button>
+        </div>
+
+        <!-- AI Budget Recommender -->
+        <div class="ai-card">
+          <span class="ai-card-badge">Smart Budget Allocator</span>
+          <h3 class="ai-card-title">📊 Optimized Budget Split</h3>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+            Industry calibrated percentage distribution based on your <strong id="aiBudgetTypeName">Birthday</strong> celebration type:
+          </p>
+          <div id="aiBudgetBreakdownList" style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.88rem;">
+            <!-- Injected by JS -->
+          </div>
+          <button id="btnApplyAIBudget" class="btn btn-primary btn-sm" style="margin-top: 1.25rem; width: 100%;">
+            <span>✅</span> Apply Recommended Allocations
+          </button>
+        </div>
+
+        <!-- AI Day-of Checklist -->
+        <div class="ai-card">
+          <span class="ai-card-badge">Vendor Checklist</span>
+          <h3 class="ai-card-title">📋 AI Day-of Checkpoints</h3>
+          <ul id="aiChecklistItems" style="list-style: none; display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.88rem; color: var(--text-secondary);">
+            <!-- Injected by JS -->
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 2: Budget & Expenses
+         ========================================================================= -->
+    <section id="tab-budget" class="tab-panel" role="tabpanel" aria-label="Budget Planner">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">💵 Interactive Budget & Expense Tracker</h2>
+          <p class="panel-subtitle">Fixed-precision Decimal financial calculations with live remaining budget and cost per confirmed guest.</p>
+        </div>
+        <div style="display: flex; gap: 0.75rem;">
+          <select id="currencySelector" class="form-select" style="width: auto; padding: 0.5rem 0.85rem;" aria-label="Currency Selector">
+            <option value="USD">USD ($)</option>
+            <option value="INR">INR (₹)</option>
+            <option value="EUR">EUR (€)</option>
+            <option value="GBP">GBP (£)</option>
+            <option value="CAD">CAD ($)</option>
+            <option value="AUD">AUD ($)</option>
+          </select>
+          <button id="btnAddExpense" class="btn btn-primary btn-sm">
+            <span>+</span> Add Expense
+          </button>
+        </div>
+      </div>
+
+      <!-- Budget Progress Card -->
+      <div class="budget-overview-card">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <div style="font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Total Budget Utilization</div>
+            <div style="font-size: 2rem; font-weight: 800; color: #fff;">
+              <span id="budgetSpentDisplay">$3,300.00</span>
+              <span style="font-size: 1.1rem; color: var(--text-muted); font-weight: 500;">/ <span id="budgetTotalDisplay">$8,500.00</span></span>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Remaining Balance</div>
+            <div id="budgetRemainingDisplay" style="font-size: 1.6rem; font-weight: 800; color: var(--accent-emerald);">$5,200.00</div>
+            <div style="font-size: 0.82rem; color: var(--text-muted);">Estimated cost per guest: <strong id="costPerGuestDisplay">$550.00</strong></div>
+          </div>
+        </div>
+
+        <div class="progress-track" aria-label="Budget progress track">
+          <div id="budgetProgressBar" class="progress-fill" style="width: 38.8%;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
+          <span>0%</span>
+          <span id="budgetPctDisplay">38.8% Utilized</span>
+          <span>100% Target Limit</span>
+        </div>
+      </div>
+
+      <!-- Expenses Table -->
+      <div class="table-container">
+        <table class="festora-table" aria-label="Expenses Table">
+          <thead>
+            <tr>
+              <th scope="col">Category</th>
+              <th scope="col">Description</th>
+              <th scope="col">Amount</th>
+              <th scope="col">Status</th>
+              <th scope="col">Action</th>
+            </tr>
+          </thead>
+          <tbody id="expensesTableBody">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 3: Timeline & Run-of-Show
+         ========================================================================= -->
+    <section id="tab-timeline" class="tab-panel" role="tabpanel" aria-label="Timeline & Run-of-Show">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">⏱️ Run-of-Show & Schedule Conflict Detector</h2>
+          <p class="panel-subtitle">Day-of event run schedule with automated overlap collision detection between activities and venues.</p>
+        </div>
+        <button id="btnAddScheduleItem" class="btn btn-primary btn-sm">
+          <span>+</span> Add Schedule Slot
+        </button>
+      </div>
+
+      <!-- Conflict Alert Banner (Dynamic) -->
+      <div id="scheduleConflictBanner" class="conflict-banner" style="display: none;" role="alert">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <span style="font-size: 1.4rem;">⚠️</span>
+          <div>
+            <strong>Schedule Conflict Detected!</strong>
+            <div id="scheduleConflictMessage" style="font-size: 0.88rem; margin-top: 0.15rem;">Two items occupy the same time or location.</div>
+          </div>
+        </div>
+        <button id="btnAutoResolveConflict" class="btn btn-secondary btn-sm" style="background: rgba(244, 63, 94, 0.25); border-color: rgba(244, 63, 94, 0.5);">Auto-Resolve Overlap</button>
+      </div>
+
+      <!-- Timeline Items List -->
+      <div id="timelineItemsContainer" class="timeline-list">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 4: Vendors & Quotes
+         ========================================================================= -->
+    <section id="tab-vendors" class="tab-panel" role="tabpanel" aria-label="Vendors & Quotes">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">🤝 Vendor Directory, Quotes & Booking Control</h2>
+          <p class="panel-subtitle">Manage supplier negotiations, booking deposits, ratings, and category checklists.</p>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary btn-sm vendor-filter-btn active" data-cat="all">All Vendors</button>
+          <button class="btn btn-secondary btn-sm vendor-filter-btn" data-cat="venue">Venue</button>
+          <button class="btn btn-secondary btn-sm vendor-filter-btn" data-cat="catering">Catering</button>
+          <button class="btn btn-secondary btn-sm vendor-filter-btn" data-cat="photography">Photo</button>
+          <button class="btn btn-secondary btn-sm vendor-filter-btn" data-cat="music_dj">Music</button>
+        </div>
+      </div>
+
+      <div id="vendorGrid" class="ai-results-grid">
+        <!-- Injected by JS -->
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         TAB 5: Guest List & RSVPs
+         ========================================================================= -->
+    <section id="tab-guests" class="tab-panel" role="tabpanel" aria-label="Guest List & RSVPs">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">👥 Guest List & Cryptographic RSVP Tracker</h2>
+          <p class="panel-subtitle">Track invitations, dietary restrictions, plus-ones, and SHA-256 secure public RSVP tokens.</p>
+        </div>
+        <div style="display: flex; gap: 0.75rem;">
+          <button id="btnExportGuestsCSV" class="btn btn-secondary btn-sm">
+            <span>📥</span> Export CSV
+          </button>
+          <button id="btnImportGuestsCSV" class="btn btn-secondary btn-sm">
+            <span>📤</span> Import CSV
+          </button>
+          <button id="btnAddGuest" class="btn btn-primary btn-sm">
+            <span>+</span> Add Guest
+          </button>
+        </div>
+      </div>
+
+      <!-- Guest Table -->
+      <div class="table-container">
+        <table class="festora-table" aria-label="Guest List">
+          <thead>
+            <tr>
+              <th scope="col">Guest Name</th>
+              <th scope="col">Email</th>
+              <th scope="col">Plus Ones</th>
+              <th scope="col">Dietary & Accessibility</th>
+              <th scope="col">RSVP Status</th>
+              <th scope="col">Invite Token</th>
+            </tr>
+          </thead>
+          <tbody id="guestsTableBody">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- =========================================================================
+       MODALS
+       ========================================================================= -->
+
+  <!-- Modal: New Celebration -->
+  <div id="modalNewEvent" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalNewEventTitle">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modalNewEventTitle" class="modal-title">🎉 Create New Celebration</h3>
+        <button class="modal-close-btn" data-close="modalNewEvent" aria-label="Close dialog">&times;</button>
+      </div>
+      <form id="formNewEvent" class="modal-body">
+        <div class="form-group">
+          <label for="newEvName" class="form-label">Event Name</label>
+          <input type="text" id="newEvName" class="form-input" required placeholder="e.g. Liam & Chloe's Coastal Wedding">
+        </div>
+        <div class="form-group">
+          <label for="newEvType" class="form-label">Celebration Type</label>
+          <select id="newEvType" class="form-select">
+            <option value="wedding">💒 Wedding Ceremony & Reception</option>
+            <option value="birthday">🎂 Milestone Birthday Soirée</option>
+            <option value="community">🎪 Community Festival / Charity Gala</option>
+            <option value="corporate">🏢 Corporate Celebration</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="newEvVenue" class="form-label">Venue / City</label>
+          <input type="text" id="newEvVenue" class="form-input" required placeholder="e.g. Sea Cliff Glasshouse, Newport">
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label for="newEvDate" class="form-label">Event Date</label>
+            <input type="date" id="newEvDate" class="form-input" required>
+          </div>
+          <div class="form-group">
+            <label for="newEvBudget" class="form-label">Budget ($)</label>
+            <input type="number" id="newEvBudget" class="form-input" required min="100" value="15000">
+          </div>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modalNewEvent">Cancel</button>
+        <button id="btnSubmitNewEvent" class="btn btn-primary">Create Celebration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add Expense -->
+  <div id="modalAddExpense" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalExpenseTitle">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modalExpenseTitle" class="modal-title">💵 Record Expense</h3>
+        <button class="modal-close-btn" data-close="modalAddExpense" aria-label="Close dialog">&times;</button>
+      </div>
+      <form id="formAddExpense" class="modal-body">
+        <div class="form-group">
+          <label for="expCategory" class="form-label">Budget Category</label>
+          <select id="expCategory" class="form-select">
+            <option value="Venue & Lounge Rental">Venue & Lounge Rental</option>
+            <option value="Catering & Bar">Catering & Bar</option>
+            <option value="Photography & Video">Photography & Video</option>
+            <option value="Music, DJ & Audio">Music, DJ & Audio</option>
+            <option value="Decor & Floral">Decor & Floral</option>
+            <option value="Favors & Misc">Favors & Misc</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="expDesc" class="form-label">Expense Description</label>
+          <input type="text" id="expDesc" class="form-input" required placeholder="e.g. Deposit for acoustic guitarist">
+        </div>
+        <div class="form-group">
+          <label for="expAmount" class="form-label">Amount</label>
+          <input type="number" id="expAmount" class="form-input" required min="1" step="0.01" placeholder="450.00">
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="expPaid" checked> Payment already completed (Paid)
+          </label>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modalAddExpense">Cancel</button>
+        <button id="btnSubmitExpense" class="btn btn-primary">Save Expense</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add Schedule Slot -->
+  <div id="modalAddSchedule" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalScheduleTitle">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modalScheduleTitle" class="modal-title">⏱️ Add Schedule Slot</h3>
+        <button class="modal-close-btn" data-close="modalAddSchedule" aria-label="Close dialog">&times;</button>
+      </div>
+      <form id="formAddSchedule" class="modal-body">
+        <div class="form-group">
+          <label for="schedTitle" class="form-label">Activity Title</label>
+          <input type="text" id="schedTitle" class="form-input" required placeholder="e.g. Sunset Cake Cutting & Fireworks">
+        </div>
+        <div class="form-group">
+          <label for="schedLocation" class="form-label">Location / Stage</label>
+          <input type="text" id="schedLocation" class="form-input" required placeholder="e.g. Main Terrace">
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div class="form-group">
+            <label for="schedStart" class="form-label">Start Time</label>
+            <input type="time" id="schedStart" class="form-input" required value="20:00">
+          </div>
+          <div class="form-group">
+            <label for="schedEnd" class="form-label">End Time</label>
+            <input type="time" id="schedEnd" class="form-input" required value="21:00">
+          </div>
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modalAddSchedule">Cancel</button>
+        <button id="btnSubmitSchedule" class="btn btn-primary">Add Slot</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Simulate Public Guest RSVP -->
+  <div id="modalSimulateRSVP" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalRSVPTitle">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modalRSVPTitle" class="modal-title">✉️ Public Guest RSVP Simulator</h3>
+        <button class="modal-close-btn" data-close="modalSimulateRSVP" aria-label="Close dialog">&times;</button>
+      </div>
+      <form id="formSimulateRSVP" class="modal-body">
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1.25rem;">
+          Simulate a guest opening their 128-bit SHA-256 encrypted invitation link and submitting their attendance decision.
+        </p>
+        <div class="form-group">
+          <label for="rsvpGuestSelect" class="form-label">Invited Guest</label>
+          <select id="rsvpGuestSelect" class="form-select">
+            <!-- Populated by JS -->
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Attendance Response</label>
+          <div style="display: flex; gap: 1.5rem; margin-top: 0.35rem;">
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+              <input type="radio" name="rsvpStatusChoice" value="attending" checked> 
+              <span style="color: #10b981; font-weight: 600;">Attending 🎉</span>
+            </label>
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+              <input type="radio" name="rsvpStatusChoice" value="declined"> 
+              <span style="color: #f43f5e; font-weight: 600;">Respectfully Decline</span>
+            </label>
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+              <input type="radio" name="rsvpStatusChoice" value="tentative"> 
+              <span style="color: #f59e0b; font-weight: 600;">Tentative</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="rsvpPlusOnes" class="form-label">Plus Ones</label>
+          <input type="number" id="rsvpPlusOnes" class="form-input" min="0" max="4" value="1">
+        </div>
+        <div class="form-group">
+          <label for="rsvpDietary" class="form-label">Dietary & Accessibility Requirements</label>
+          <input type="text" id="rsvpDietary" class="form-input" placeholder="e.g. Vegetarian, Gluten-free, Wheelchair access">
+        </div>
+      </form>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modalSimulateRSVP">Cancel</button>
+        <button id="btnSubmitRSVP" class="btn btn-primary">Submit RSVP</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Print Plan Master Preview -->
+  <div id="modalPrintPlan" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalPrintTitle">
+    <div class="modal-box" style="max-width: 750px;">
+      <div class="modal-header">
+        <h3 id="modalPrintTitle" class="modal-title">📄 Event Master Plan Summary</h3>
+        <button class="modal-close-btn" data-close="modalPrintPlan" aria-label="Close dialog">&times;</button>
+      </div>
+      <div id="printPlanContent" class="modal-body" style="font-size: 0.95rem; line-height: 1.6;">
+        <!-- Filled dynamically by JS -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modalPrintPlan">Close</button>
+        <button id="btnDoPrint" class="btn btn-primary">Print / Save as PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- Client Application Script -->
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# Festora Backend Requirements
+Django==6.1.2
+djangorestframework==3.18.3
+django-cors-headers==4.7.0
+pytest==9.1.1
+pytest-django==4.14.0
+pytest-cov==6.0.0
+gunicorn==23.0.0
+asgiref==3.13.0
+sqlparse==0.6.0
+python-dotenv==1.2.1
+pydantic==2.12.4
