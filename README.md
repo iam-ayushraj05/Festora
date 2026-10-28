@@ -2,6 +2,8 @@
 
 An accessible, secure, GenAI-powered event-planning web platform for organizing weddings, birthdays, and community events with budgets, timelines, vendor checklists, personalized ideas, and RSVPs.
 
+**Live Production Demo:** [https://web-bice-two-85.vercel.app/](https://web-bice-two-85.vercel.app/)
+
 ## Tech Stack
 
 | Layer | Technology |
