@@ -1,13 +1,27 @@
 from rest_framework import serializers
+
 from .models import BudgetCategory, Expense
 
+
 class ExpenseSerializer(serializers.ModelSerializer):
-    category_name = serializers.CharField(source='category.name', read_only=True)
+    category_name = serializers.CharField(source="category.name", read_only=True)
 
     class Meta:
         model = Expense
-        fields = ['id', 'category', 'category_name', 'description', 'amount', 'currency', 'date', 'paid', 'notes', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = [
+            "id",
+            "category",
+            "category_name",
+            "description",
+            "amount",
+            "currency",
+            "date",
+            "paid",
+            "notes",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
 
 class BudgetCategorySerializer(serializers.ModelSerializer):
     expenses = ExpenseSerializer(many=True, read_only=True)
@@ -15,5 +29,5 @@ class BudgetCategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BudgetCategory
-        fields = ['id', 'event', 'name', 'estimated_amount', 'total_spent', 'expenses']
-        read_only_fields = ['id', 'total_spent']
+        fields = ["id", "event", "name", "estimated_amount", "total_spent", "expenses"]
+        read_only_fields = ["id", "total_spent"]

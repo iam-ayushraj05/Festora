@@ -1,10 +1,11 @@
 from django.urls import path
-from .views import CSRFTokenView, RegisterView, LoginView, LogoutView, MeView
+
+from .views import CSRFTokenView, LoginView, LogoutView, MeView, RegisterView
 
 urlpatterns = [
-    path('csrf/', CSRFTokenView.as_view(), name='auth_csrf'),
-    path('register/', RegisterView.as_view(), name='auth_register'),
-    path('login/', LoginView.as_view(), name='auth_login'),
-    path('logout/', LogoutView.as_view(), name='auth_logout'),
-    path('me/', MeView.as_view(), name='auth_me'),
+    path("csrf/", CSRFTokenView.as_view(), name="auth_csrf"),
+    path("register/", RegisterView.as_view(), name="auth_register"),
+    path("login/", LoginView.as_view(), name="auth_login"),
+    path("logout/", LogoutView.as_view(), name="auth_logout"),
+    path("me/", MeView.as_view(), name="auth_me"),
 ]

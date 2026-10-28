@@ -1,9 +1,12 @@
-import pytest
 from datetime import timedelta
+
+import pytest
 from django.utils import timezone
+
 from apps.events.models import Event
-from apps.tasks.models import Task, TaskPriority, TaskStatus, ScheduleItem
+from apps.tasks.models import ScheduleItem, Task, TaskPriority, TaskStatus
 from apps.tasks.services import find_schedule_conflicts
+
 
 @pytest.mark.django_db
 class TestTasksAndTimeline:
@@ -13,7 +16,7 @@ class TestTasksAndTimeline:
             event=event,
             title="Book florists",
             priority=TaskPriority.HIGH,
-            status=TaskStatus.TODO
+            status=TaskStatus.TODO,
         )
         assert task.completed_at is None
         task.mark_completed()
@@ -29,7 +32,7 @@ class TestTasksAndTimeline:
             event=event,
             title="Ceremony Setup",
             start_time=base_time,
-            end_time=base_time + timedelta(hours=2)
+            end_time=base_time + timedelta(hours=2),
         )
 
         # Item B: 11:00 - 13:00 (Overlaps with A!)
@@ -37,7 +40,7 @@ class TestTasksAndTimeline:
             event=event,
             title="Band Soundcheck",
             start_time=base_time + timedelta(hours=1),
-            end_time=base_time + timedelta(hours=3)
+            end_time=base_time + timedelta(hours=3),
         )
 
         # Item C: 14:00 - 15:00 (No overlap)
@@ -45,10 +48,10 @@ class TestTasksAndTimeline:
             event=event,
             title="Reception Welcome",
             start_time=base_time + timedelta(hours=4),
-            end_time=base_time + timedelta(hours=5)
+            end_time=base_time + timedelta(hours=5),
         )
 
         conflicts = find_schedule_conflicts(event)
         assert len(conflicts) == 1
-        assert conflicts[0]['item_a']['id'] == str(item_a.id)
-        assert conflicts[0]['item_b']['id'] == str(item_b.id)
+        assert conflicts[0]["item_a"]["id"] == str(item_a.id)
+        assert conflicts[0]["item_b"]["id"] == str(item_b.id)

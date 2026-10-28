@@ -1,7 +1,9 @@
 import pytest
+
 from apps.events.models import Event
-from apps.guests.models import Guest, InviteToken, RSVP, RSVPStatus
-from apps.guests.services import verify_and_get_guest_by_token, import_guests_from_csv
+from apps.guests.models import RSVP, Guest, InviteToken, RSVPStatus
+from apps.guests.services import import_guests_from_csv, verify_and_get_guest_by_token
+
 
 @pytest.mark.django_db
 class TestGuestsAndRSVP:

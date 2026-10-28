@@ -1,9 +1,18 @@
-import pytest
 from decimal import Decimal
+
+import pytest
 from django.core.exceptions import ValidationError
+
 from apps.accounts.models import User
-from apps.events.models import Event, EventStatus, EventType, EventMember, EventMemberRole
+from apps.events.models import (
+    Event,
+    EventMember,
+    EventMemberRole,
+    EventStatus,
+    EventType,
+)
 from apps.events.services import duplicate_event
+
 
 @pytest.mark.django_db
 class TestEvents:
@@ -12,7 +21,7 @@ class TestEvents:
             name="Summer Gala",
             event_type=EventType.COMMUNITY,
             status=EventStatus.DRAFT,
-            budget=Decimal('5000.00')
+            budget=Decimal("5000.00"),
         )
         assert event.status == EventStatus.DRAFT
 
@@ -33,24 +42,21 @@ class TestEvents:
             event.transition_to(EventStatus.PLANNING)
 
     def test_negative_budget_rejected(self):
-        event = Event(
-            name="Invalid Event",
-            budget=Decimal('-100.00')
-        )
+        event = Event(name="Invalid Event", budget=Decimal("-100.00"))
         with pytest.raises(ValidationError):
             event.clean()
 
     def test_duplicate_event(self):
-        user = User.objects.create_user(email='owner@festora.test', password='Password123!')
+        user = User.objects.create_user(email="owner@festora.test", password="Password123!")
         original = Event.objects.create(
             name="Grand Birthday",
             event_type=EventType.BIRTHDAY,
-            budget=Decimal('2500.00')
+            budget=Decimal("2500.00"),
         )
         EventMember.objects.create(event=original, user=user, role=EventMemberRole.OWNER)
 
         copy = duplicate_event(original, user)
         assert copy.name == "Grand Birthday (Copy)"
         assert copy.status == EventStatus.DRAFT
-        assert copy.budget == Decimal('2500.00')
+        assert copy.budget == Decimal("2500.00")
         assert copy.members.filter(user=user, role=EventMemberRole.OWNER).exists()

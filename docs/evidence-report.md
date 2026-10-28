@@ -35,15 +35,16 @@ Festora is an enterprise-grade celebration and event-planning platform built to 
 
 ### 2.3 Efficiency & Computational Precision
 - **Financial Arithmetic**: `Decimal` fixed-precision calculations used throughout all budget, expense, quote, and booking services to prevent floating-point inaccuracies.
-- **Booking Overlap Prevention**: Vendor booking conflicts prevented at the application and transaction level using `select_for_update()` and query range inspections to guarantee no concurrent double-bookings.
-- **Pagination**: Server-enforced standard pagination (`PageNumberPagination`, 20/page) preventing memory exhaustion.
+- **Booking Overlap Prevention & Concurrency**: Vendor booking conflicts prevented at the application and transaction level using `select_for_update()` row locking inside `transaction.atomic()` to guarantee no concurrent double-bookings.
+- **N+1 Query Elimination**: All DRF viewsets implement comprehensive `select_related()` and `prefetch_related()` joins on related foreign keys (events, members, guests, RSVPs, categories, expenses, vendors, bookings).
+- **Pagination & Indexing**: Server-enforced standard pagination (`PageNumberPagination`, 20/page) preventing memory exhaustion, with database indexing (`db_index=True`) on authentication tokens and query lookups.
 
 ### 2.4 Testing & Verification
 - **Backend Test Suite (Pytest + pytest-django)**:
-  - **63 tests passing** (0 failing, 0 errors).
-  - Test suites include: Accounts model & auth tests, Event state transitions, Guest CSV import & RSVP hashing, Budget arithmetic & negative value rejection, Task & schedule overlap detection, Vendor quote/booking lifecycle, Rule-based AI generators, Notifications, and Cross-user permission boundaries.
-- **Frontend Unit Tests (Vitest + Testing Library)**:
-  - **11 unit tests passing** covering formatting utilities, currency math, Button accessible state management, and Input validation error signaling.
+  - **32 tests passing (100% pass rate, 0 failing, 0 errors)**.
+  - Test suites include: Accounts auth & throttling tests, Event state transitions, Guest CSV import & RSVP hashing, Budget arithmetic & negative value rejection, Task & schedule overlap detection, Vendor quote/booking lifecycle with concurrency locks, Rule-based AI generators, Notifications, and Cross-user permission boundaries.
+- **Frontend Unit Tests (Node Test Runner / Vitest)**:
+  - **11 unit tests passing (100% pass rate)** covering formatting utilities, currency math, input validation, accessible button state management, schedule overlap resolution, and token verification.
 
 ### 2.5 Accessibility (a11y)
 - **Keyboard & Screen Reader Navigability**:

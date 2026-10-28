@@ -1,10 +1,20 @@
-import pytest
-from decimal import Decimal
 from datetime import timedelta
-from django.utils import timezone
+from decimal import Decimal
+
+import pytest
 from django.core.exceptions import ValidationError
+from django.utils import timezone
+
 from apps.events.models import Event
-from apps.vendors.models import Vendor, VendorCategory, Booking, BookingStatus, QuoteRequest, QuoteStatus
+from apps.vendors.models import (
+    Booking,
+    BookingStatus,
+    QuoteRequest,
+    QuoteStatus,
+    Vendor,
+    VendorCategory,
+)
+
 
 @pytest.mark.django_db
 class TestVendorsAndBookings:
@@ -12,8 +22,8 @@ class TestVendorsAndBookings:
         vendor = Vendor.objects.create(
             name="Starlight Photo & Film",
             category=VendorCategory.PHOTOGRAPHY,
-            rating=Decimal('4.90'),
-            price_range='$$'
+            rating=Decimal("4.90"),
+            price_range="$$",
         )
         event = Event.objects.create(name="Wedding Celebration")
 
@@ -21,11 +31,11 @@ class TestVendorsAndBookings:
             event=event,
             vendor=vendor,
             status=QuoteStatus.PENDING,
-            estimated_cost=Decimal('2200.00'),
-            message="Need 8 hours of coverage"
+            estimated_cost=Decimal("2200.00"),
+            message="Need 8 hours of coverage",
         )
         assert quote.vendor.name == "Starlight Photo & Film"
-        assert quote.estimated_cost == Decimal('2200.00')
+        assert quote.estimated_cost == Decimal("2200.00")
 
     def test_booking_overlap_prevention(self):
         vendor = Vendor.objects.create(name="Grand Hall", category=VendorCategory.VENUE)
@@ -40,7 +50,7 @@ class TestVendorsAndBookings:
             vendor=vendor,
             start_time=base_time,
             end_time=base_time + timedelta(hours=5),
-            status=BookingStatus.CONFIRMED
+            status=BookingStatus.CONFIRMED,
         )
 
         # Booking 2 for same vendor overlapping: 12:00 - 18:00
@@ -49,7 +59,7 @@ class TestVendorsAndBookings:
             vendor=vendor,
             start_time=base_time + timedelta(hours=2),
             end_time=base_time + timedelta(hours=8),
-            status=BookingStatus.CONFIRMED
+            status=BookingStatus.CONFIRMED,
         )
 
         with pytest.raises(ValidationError):

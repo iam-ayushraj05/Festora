@@ -1,5 +1,7 @@
 from django.db import transaction
+
 from .models import Event, EventMember, EventMemberRole, EventStatus
+
 
 def duplicate_event(original_event: Event, user) -> Event:
     """Duplicate an existing event including its budget categories and tasks structure."""
@@ -15,18 +17,11 @@ def duplicate_event(original_event: Event, user) -> Event:
             status=EventStatus.DRAFT,
         )
         # Set creator as Owner
-        EventMember.objects.create(
-            event=new_event,
-            user=user,
-            role=EventMemberRole.OWNER
-        )
+        EventMember.objects.create(event=new_event, user=user, role=EventMemberRole.OWNER)
 
         # Clone budget categories
         for category in original_event.budget_categories.all():
-            new_event.budget_categories.create(
-                name=category.name,
-                estimated_amount=category.estimated_amount
-            )
+            new_event.budget_categories.create(name=category.name, estimated_amount=category.estimated_amount)
 
         # Clone tasks
         for task in original_event.tasks.all():
@@ -34,7 +29,7 @@ def duplicate_event(original_event: Event, user) -> Event:
                 title=task.title,
                 description=task.description,
                 priority=task.priority,
-                status='todo'
+                status="todo",
             )
 
         return new_event
