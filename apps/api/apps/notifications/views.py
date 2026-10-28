@@ -12,9 +12,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NotificationSerializer
 
     def get_queryset(self):
-        return Notification.objects.filter(user=self.request.user).select_related(
-            "user", "event"
-        )
+        return Notification.objects.filter(user=self.request.user).select_related("user", "event")
 
     @action(detail=True, methods=["post"])
     def mark_read(self, request, pk=None):

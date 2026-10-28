@@ -21,6 +21,9 @@ class Guest(models.Model):
 
     class Meta:
         ordering = ["name"]
+        indexes = [
+            models.Index(fields=["event", "name"]),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.event.name})"
@@ -38,6 +41,11 @@ class RSVP(models.Model):
     response = models.CharField(max_length=20, choices=RSVPStatus.choices, default=RSVPStatus.ATTENDING)
     notes = models.TextField(blank=True)
     responded_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["guest", "response"]),
+        ]
 
     def __str__(self):
         return f"{self.guest.name} - {self.response}"

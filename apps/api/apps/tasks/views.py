@@ -18,9 +18,7 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         event_id = self.request.query_params.get("event")
-        queryset = Task.objects.filter(
-            event__members__user=self.request.user
-        ).select_related("event", "assigned_to")
+        queryset = Task.objects.filter(event__members__user=self.request.user).select_related("event", "assigned_to")
         if event_id:
             queryset = queryset.filter(event_id=event_id)
         return queryset.distinct()
@@ -38,9 +36,7 @@ class ScheduleItemViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         event_id = self.request.query_params.get("event")
-        queryset = ScheduleItem.objects.filter(
-            event__members__user=self.request.user
-        ).select_related("event")
+        queryset = ScheduleItem.objects.filter(event__members__user=self.request.user).select_related("event")
         if event_id:
             queryset = queryset.filter(event_id=event_id)
         return queryset.distinct()

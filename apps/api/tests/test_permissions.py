@@ -1,7 +1,9 @@
 import pytest
+
 from apps.accounts.models import User
 from apps.events.models import Event, EventMember, EventMemberRole
 from apps.events.permissions import IsEventMember, IsEventOwner
+
 
 @pytest.mark.django_db
 class TestPermissionsSecurity:

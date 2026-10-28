@@ -1,8 +1,9 @@
 import pytest
 from django.contrib.auth import authenticate
 from django.test import RequestFactory
+
 from apps.accounts.models import User
-from apps.accounts.views import LoginView
+
 
 @pytest.mark.django_db
 class TestAuthSecurity:
@@ -23,6 +24,7 @@ class TestAuthSecurity:
         factory = RequestFactory()
         request = factory.post("/api/auth/login/")
         from django.contrib.sessions.middleware import SessionMiddleware
+
         middleware = SessionMiddleware(lambda req: None)
         middleware.process_request(request)
         request.session.save()
@@ -35,6 +37,7 @@ class TestAuthSecurity:
     def test_csrf_required(self):
         """T3: Verify CSRF token endpoint is available."""
         from django.test import Client
+
         client = Client(enforce_csrf_checks=True)
         response = client.get("/api/auth/csrf/")
         assert response.status_code == 200
@@ -42,7 +45,7 @@ class TestAuthSecurity:
 
     def test_no_account_enumeration(self):
         """T7: Same generic response for non-existent vs invalid credentials."""
-        user = User.objects.create_user(email="registered@festora.test", password="Password123!")
+        User.objects.create_user(email="registered@festora.test", password="Password123!")
         factory = RequestFactory()
         req = factory.post("/api/auth/login/")
 

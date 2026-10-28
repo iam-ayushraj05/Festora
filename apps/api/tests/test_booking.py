@@ -1,11 +1,14 @@
-import pytest
 from datetime import timedelta
 from decimal import Decimal
+
+import pytest
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+
 from apps.events.models import Event
-from apps.vendors.models import Booking, BookingStatus, Vendor, VendorCategory
+from apps.vendors.models import BookingStatus, Vendor, VendorCategory
 from apps.vendors.services import create_booking_atomic
+
 
 @pytest.mark.django_db
 class TestBookingSecurity:

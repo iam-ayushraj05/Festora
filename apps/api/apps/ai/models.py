@@ -32,6 +32,9 @@ class AIRequest(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+        ]
 
     def __str__(self):
         return f"{self.user.email} - {self.request_type} ({self.status})"

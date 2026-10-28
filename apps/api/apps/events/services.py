@@ -19,17 +19,29 @@ def duplicate_event(original_event: Event, user) -> Event:
         # Set creator as Owner
         EventMember.objects.create(event=new_event, user=user, role=EventMemberRole.OWNER)
 
-        # Clone budget categories
-        for category in original_event.budget_categories.all():
-            new_event.budget_categories.create(name=category.name, estimated_amount=category.estimated_amount)
+        # Bulk clone budget categories
+        from apps.budget.models import BudgetCategory
+        from apps.tasks.models import Task, TaskStatus
 
-        # Clone tasks
-        for task in original_event.tasks.all():
-            new_event.tasks.create(
+        categories_to_create = [
+            BudgetCategory(event=new_event, name=cat.name, estimated_amount=cat.estimated_amount)
+            for cat in original_event.budget_categories.all()
+        ]
+        if categories_to_create:
+            BudgetCategory.objects.bulk_create(categories_to_create)
+
+        # Bulk clone tasks
+        tasks_to_create = [
+            Task(
+                event=new_event,
                 title=task.title,
                 description=task.description,
                 priority=task.priority,
-                status="todo",
+                status=TaskStatus.TODO,
             )
+            for task in original_event.tasks.all()
+        ]
+        if tasks_to_create:
+            Task.objects.bulk_create(tasks_to_create)
 
         return new_event

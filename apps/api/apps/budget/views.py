@@ -33,9 +33,9 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         event_id = self.request.query_params.get("event")
-        queryset = Expense.objects.filter(
-            category__event__members__user=self.request.user
-        ).select_related("category", "category__event")
+        queryset = Expense.objects.filter(category__event__members__user=self.request.user).select_related(
+            "category", "category__event"
+        )
         if event_id:
             queryset = queryset.filter(category__event_id=event_id)
         return queryset.distinct()

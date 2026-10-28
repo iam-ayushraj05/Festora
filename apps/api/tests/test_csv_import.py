@@ -1,6 +1,8 @@
 import pytest
+
 from apps.events.models import Event
 from apps.guests.services import import_guests_from_csv
+
 
 @pytest.mark.django_db
 class TestCSVImportSecurity:

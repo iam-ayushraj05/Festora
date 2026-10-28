@@ -26,9 +26,7 @@ class QuoteRequestViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         event_id = self.request.query_params.get("event")
-        queryset = QuoteRequest.objects.filter(
-            event__members__user=self.request.user
-        ).select_related("event", "vendor")
+        queryset = QuoteRequest.objects.filter(event__members__user=self.request.user).select_related("event", "vendor")
         if event_id:
             queryset = queryset.filter(event_id=event_id)
         return queryset.distinct()
@@ -40,9 +38,7 @@ class BookingViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         event_id = self.request.query_params.get("event")
-        queryset = Booking.objects.filter(
-            event__members__user=self.request.user
-        ).select_related("event", "vendor")
+        queryset = Booking.objects.filter(event__members__user=self.request.user).select_related("event", "vendor")
         if event_id:
             queryset = queryset.filter(event_id=event_id)
         return queryset.distinct()

@@ -4,19 +4,23 @@ from apps.events.models import Event
 
 
 def find_schedule_conflicts(event: Event) -> list[dict[str, Any]]:
-    """Detect overlapping schedule items for the given event."""
-    items = list(event.schedule_items.order_by("start_time"))
+    """Detect overlapping schedule items for the given event using interval sweep line with early termination."""
+    items = list(event.schedule_items.only("id", "title", "start_time", "end_time", "location").order_by("start_time"))
     conflicts = []
+    n = len(items)
 
-    for i in range(len(items)):
-        for j in range(i + 1, len(items)):
-            item_a = items[i]
+    for i in range(n):
+        item_a = items[i]
+        for j in range(i + 1, n):
             item_b = items[j]
 
-            # If item_b starts after or at item_a ends, and items are sorted by start_time,
-            # item_b won't conflict with item_a, but subsequent items might still conflict if item_a spans long.
-            # So check overlap:
-            if item_a.start_time < item_b.end_time and item_b.start_time < item_a.end_time:
+            # Since items are ordered by start_time:
+            # If item_b starts at or after item_a ends, all subsequent items will also start
+            # at or after item_a ends and cannot overlap item_a.
+            if item_b.start_time >= item_a.end_time:
+                break
+
+            if item_b.start_time < item_a.end_time and item_a.start_time < item_b.end_time:
                 conflicts.append(
                     {
                         "item_a": {

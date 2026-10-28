@@ -1,7 +1,25 @@
 /**
  * Festora — GenAI-Powered Celebration & Event Planner
- * Interactive Application Engine
+ * Interactive Application Engine & Performance Architecture
+ * 
+ * Features:
+ * - O(N log N) sweep-line interval conflict detection
+ * - Reactive memoized computation cache for budget & guest metrics
+ * - Non-blocking debounced persistence with requestIdleCallback
+ * - Fine-grained DOM reconciliation avoiding layout thrashing
+ * - Delegated high-throughput event dispatchers
  */
+
+import {
+  detectScheduleConflicts,
+  calculateBudgetSummary,
+  calculateGuestMetrics,
+  formatCurrencyFast,
+  autoResolveConflict,
+  debounce,
+  updateInnerHTMLIfChanged,
+  updateTextIfChanged
+} from './algorithms.js';
 
 // Initial Seed Events Database
 const initialEvents = {
@@ -184,10 +202,18 @@ try {
   console.warn("Storage access restricted, using in-memory state.");
 }
 
-function saveAppData() {
+/**
+ * Non-blocking, debounced persistence layer.
+ * Defers serialization to requestIdleCallback, preventing UI thread blocking.
+ */
+const persistAppDataDebounced = debounce(() => {
   try {
     localStorage.setItem('festora_app_data', JSON.stringify(appData));
   } catch (e) {}
+}, 250);
+
+function saveAppData() {
+  persistAppDataDebounced();
 }
 
 function getCurrentEvent() {
@@ -215,33 +241,17 @@ const currencyRates = {
 function formatCurrency(amount) {
   const symbol = currencySymbols[appData.currency] || '$';
   const rate = currencyRates[appData.currency] || 1.0;
-  const converted = Number(amount) * rate;
-  return `${symbol}${converted.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return formatCurrencyFast(amount, appData.currency, rate, symbol);
 }
 
-// Conflict / Overlap Detection
-function detectScheduleConflicts(timelineItems) {
-  const conflicts = [];
-  const sorted = [...timelineItems].sort((a, b) => a.start.localeCompare(b.start));
-
-  for (let i = 0; i < sorted.length; i++) {
-    for (let j = i + 1; j < sorted.length; j++) {
-      const itemA = sorted[i];
-      const itemB = sorted[j];
-
-      // Overlap condition: startA < endB && startB < endA
-      if (itemA.start < itemB.end && itemB.start < itemA.end) {
-        conflicts.push({ itemA, itemB });
-      }
-    }
-  }
-  return conflicts;
-}
-
-// Toast notification helper
+// Toast notification helper with micro-animations and DOM node throttling
 function showToast(message, type = 'info') {
   const container = document.getElementById('toastContainer');
   if (!container) return;
+  // Prevent DOM tree bloat by capping active toasts to 3
+  while (container.children.length >= 3) {
+    container.firstElementChild?.remove();
+  }
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
   toast.innerHTML = `<span>${type === 'success' ? '✅' : type === 'warning' ? '⚠️' : '✨'}</span> <span>${message}</span>`;
@@ -253,109 +263,198 @@ function showToast(message, type = 'info') {
   }, 3500);
 }
 
-// UI Rendering Engine
+/**
+ * Active tab tracking and dirty-flag view cache.
+ * Avoids reconstructing HTML and traversing DOM for hidden tabs.
+ */
+let currentActiveTab = 'tab-ai';
+const dirtyTabs = new Set(['tab-ai', 'tab-budget', 'tab-timeline', 'tab-vendors', 'tab-guests']);
+
+function markTabsDirty(...tabs) {
+  if (tabs.length === 0) {
+    ['tab-ai', 'tab-budget', 'tab-timeline', 'tab-vendors', 'tab-guests'].forEach(t => dirtyTabs.add(t));
+  } else {
+    tabs.forEach(t => dirtyTabs.add(t));
+  }
+}
+
+/**
+ * Reactive computation cache.
+ * Avoids recalculating budget totals, cost-per-guest metrics,
+ * timeline conflicts, and vendor comparisons when inputs have not changed.
+ */
+const memoCache = {
+  eventId: '',
+  expensesHash: '',
+  budgetSummary: null,
+  timelineHash: '',
+  conflicts: null,
+  guestsHash: '',
+  guestMetrics: null,
+  vendorsHash: '',
+  bookedVendorsCount: 0
+};
+
+// UI Rendering Engine with fine-grained element reconciliation
 function renderApp() {
   const ev = getCurrentEvent();
   if (!ev) return;
 
   // 1. Hero & Badges
-  document.getElementById('heroTypeBadge').textContent = ev.typeDisplay;
-  document.getElementById('heroTitle').textContent = ev.name;
-  document.getElementById('heroVenue').textContent = ev.venue;
-  document.getElementById('heroDate').textContent = new Date(ev.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-  
+  updateTextIfChanged(document.getElementById('heroTypeBadge'), ev.typeDisplay);
+  updateTextIfChanged(document.getElementById('heroTitle'), ev.name);
+  updateTextIfChanged(document.getElementById('heroVenue'), ev.venue);
+  updateTextIfChanged(
+    document.getElementById('heroDate'),
+    new Date(ev.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  );
+
   // Calculate days remaining
-  const daysDiff = Math.ceil((new Date(ev.date) - new Date()) / (1000 * 60 * 60 * 24));
-  document.getElementById('heroCountdown').textContent = daysDiff > 0 ? `${daysDiff} days remaining` : (daysDiff === 0 ? 'Today!' : 'Completed');
-  
+  const eventDate = new Date(ev.date);
+  const now = new Date();
+  const daysDiff = Math.ceil((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  updateTextIfChanged(
+    document.getElementById('heroCountdown'),
+    daysDiff > 0 ? `${daysDiff} days remaining` : (daysDiff === 0 ? 'Today!' : 'Completed')
+  );
+
   const statusBadge = document.getElementById('heroStatusBadge');
-  statusBadge.className = `badge badge-${ev.status}`;
-  statusBadge.textContent = ev.status.charAt(0).toUpperCase() + ev.status.slice(1);
-
-  // 2. Budget Calculations
-  const totalBudget = ev.budget;
-  const totalSpent = ev.expenses.reduce((sum, item) => sum + item.amount, 0);
-  const remainingBudget = totalBudget - totalSpent;
-  const utilizationPct = totalBudget > 0 ? ((totalSpent / totalBudget) * 100).toFixed(1) : 0;
-
-  document.getElementById('kpiBudgetSpent').textContent = `${formatCurrency(totalSpent)} / ${formatCurrency(totalBudget)}`;
-  document.getElementById('budgetSpentDisplay').textContent = formatCurrency(totalSpent);
-  document.getElementById('budgetTotalDisplay').textContent = formatCurrency(totalBudget);
-  document.getElementById('budgetRemainingDisplay').textContent = formatCurrency(remainingBudget);
-  document.getElementById('budgetPctDisplay').textContent = `${utilizationPct}% Utilized`;
-
-  const progressBar = document.getElementById('budgetProgressBar');
-  progressBar.style.width = `${Math.min(utilizationPct, 100)}%`;
-  if (utilizationPct > 90) {
-    progressBar.classList.add('danger');
-  } else {
-    progressBar.classList.remove('danger');
+  if (statusBadge) {
+    statusBadge.className = `badge badge-${ev.status}`;
+    updateTextIfChanged(statusBadge, ev.status.charAt(0).toUpperCase() + ev.status.slice(1));
   }
 
-  // 3. Guests & RSVPs Calculations
-  const totalInvited = ev.guests.length;
-  const confirmedCount = ev.guests.filter(g => g.status === 'attending').length;
-  document.getElementById('kpiGuests').textContent = `${confirmedCount} Confirmed`;
-  
-  const costPerGuest = confirmedCount > 0 ? (totalSpent / confirmedCount) : 0;
-  document.getElementById('costPerGuestDisplay').textContent = formatCurrency(costPerGuest);
+  // 2. Budget Calculations with Cache Check
+  const expensesHash = `${ev.budget}-${ev.expenses.length}-${ev.expenses.map(e => `${e.id}:${e.amount}`).join('|')}`;
+  if (memoCache.eventId !== ev.id || memoCache.expensesHash !== expensesHash) {
+    memoCache.budgetSummary = calculateBudgetSummary(ev.budget, ev.expenses);
+    memoCache.expensesHash = expensesHash;
+  }
+  const budgetSum = memoCache.budgetSummary;
 
-  // 4. Timeline & Conflict Detection
-  const conflicts = detectScheduleConflicts(ev.timeline);
-  document.getElementById('kpiTimeline').textContent = `${ev.timeline.length} Slots`;
+  updateTextIfChanged(
+    document.getElementById('kpiBudgetSpent'),
+    `${formatCurrency(budgetSum.totalSpent)} / ${formatCurrency(budgetSum.totalBudget)}`
+  );
+  updateTextIfChanged(document.getElementById('budgetSpentDisplay'), formatCurrency(budgetSum.totalSpent));
+  updateTextIfChanged(document.getElementById('budgetTotalDisplay'), formatCurrency(budgetSum.totalBudget));
+  updateTextIfChanged(document.getElementById('budgetRemainingDisplay'), formatCurrency(budgetSum.remainingBudget));
+  updateTextIfChanged(document.getElementById('budgetPctDisplay'), `${budgetSum.utilizationPct}% Utilized`);
+
+  const progressBar = document.getElementById('budgetProgressBar');
+  if (progressBar) {
+    progressBar.style.width = `${Math.min(budgetSum.utilizationPct, 100)}%`;
+    if (budgetSum.utilizationPct > 90) {
+      progressBar.classList.add('danger');
+    } else {
+      progressBar.classList.remove('danger');
+    }
+  }
+
+  // 3. Guests & RSVPs Calculations with Cache Check
+  const guestsHash = `${ev.guests.length}-${ev.guests.map(g => `${g.id}:${g.status}:${g.plusOnes}`).join('|')}-${budgetSum.totalSpent}`;
+  if (memoCache.eventId !== ev.id || memoCache.guestsHash !== guestsHash) {
+    memoCache.guestMetrics = calculateGuestMetrics(ev.guests, budgetSum.totalSpent);
+    memoCache.guestsHash = guestsHash;
+  }
+  const guestMet = memoCache.guestMetrics;
+
+  updateTextIfChanged(document.getElementById('kpiGuests'), `${guestMet.confirmedCount} Confirmed`);
+  updateTextIfChanged(document.getElementById('costPerGuestDisplay'), formatCurrency(guestMet.costPerGuest));
+
+  // 4. Timeline & Conflict Detection with Sweep-Line Algorithm & Cache Check
+  const timelineHash = `${ev.timeline.length}-${ev.timeline.map(t => `${t.id}:${t.start}-${t.end}`).join('|')}`;
+  if (memoCache.eventId !== ev.id || memoCache.timelineHash !== timelineHash) {
+    memoCache.conflicts = detectScheduleConflicts(ev.timeline);
+    memoCache.timelineHash = timelineHash;
+  }
+  const conflicts = memoCache.conflicts;
+
+  updateTextIfChanged(document.getElementById('kpiTimeline'), `${ev.timeline.length} Slots`);
   const conflictStatus = document.getElementById('kpiConflictStatus');
   const conflictBanner = document.getElementById('scheduleConflictBanner');
 
   if (conflicts.length > 0) {
-    conflictStatus.textContent = `⚠️ ${conflicts.length} Overlap Conflict!`;
-    conflictStatus.style.color = 'var(--accent-rose)';
-    conflictBanner.style.display = 'flex';
-    document.getElementById('scheduleConflictMessage').textContent = 
-      `Conflict between "${conflicts[0].itemA.title}" (${conflicts[0].itemA.start}-${conflicts[0].itemA.end}) and "${conflicts[0].itemB.title}" (${conflicts[0].itemB.start}-${conflicts[0].itemB.end}).`;
+    if (conflictStatus) {
+      conflictStatus.textContent = `⚠️ ${conflicts.length} Overlap Conflict!`;
+      conflictStatus.style.color = 'var(--accent-rose)';
+    }
+    if (conflictBanner) conflictBanner.style.display = 'flex';
+    updateTextIfChanged(
+      document.getElementById('scheduleConflictMessage'),
+      `Conflict between "${conflicts[0].itemA.title}" (${conflicts[0].itemA.start}-${conflicts[0].itemA.end}) and "${conflicts[0].itemB.title}" (${conflicts[0].itemB.start}-${conflicts[0].itemB.end}).`
+    );
   } else {
-    conflictStatus.textContent = '0 Schedule Conflicts';
-    conflictStatus.style.color = 'var(--text-secondary)';
-    conflictBanner.style.display = 'none';
+    if (conflictStatus) {
+      conflictStatus.textContent = '0 Schedule Conflicts';
+      conflictStatus.style.color = 'var(--text-secondary)';
+    }
+    if (conflictBanner) conflictBanner.style.display = 'none';
   }
 
-  // 5. Vendors KPI
-  const bookedCount = ev.vendors.filter(v => v.booked).length;
-  document.getElementById('kpiVendors').textContent = `${bookedCount} Booked`;
+  // 5. Vendors KPI with Cache Check
+  const vendorsHash = `${ev.vendors.length}-${ev.vendors.map(v => `${v.id}:${v.booked}`).join('|')}`;
+  if (memoCache.eventId !== ev.id || memoCache.vendorsHash !== vendorsHash) {
+    memoCache.bookedVendorsCount = ev.vendors.filter(v => v.booked).length;
+    memoCache.vendorsHash = vendorsHash;
+  }
+  updateTextIfChanged(document.getElementById('kpiVendors'), `${memoCache.bookedVendorsCount} Booked`);
 
-  // 6. Render GenAI Studio Tab
-  renderAIStudio(ev);
+  memoCache.eventId = ev.id;
 
-  // 7. Render Expenses Table
-  renderExpenses(ev);
+  // 6. Active Tab Sub-view Rendering with Lazy Dirty Checking
+  renderSubView(currentActiveTab, ev, conflicts);
+}
 
-  // 8. Render Timeline List
-  renderTimeline(ev, conflicts);
+/**
+ * Lazily renders a specific sub-view only when required.
+ * @param {string} tabId
+ * @param {any} [ev]
+ * @param {any[]} [conflicts]
+ */
+function renderSubView(tabId, ev, conflicts) {
+  if (!ev) ev = getCurrentEvent();
+  if (!conflicts) conflicts = memoCache.conflicts || [];
 
-  // 9. Render Vendors Grid
-  renderVendors(ev);
-
-  // 10. Render Guests Table
-  renderGuests(ev);
+  switch (tabId) {
+    case 'tab-ai':
+      renderAIStudio(ev);
+      break;
+    case 'tab-budget':
+      renderExpenses(ev);
+      break;
+    case 'tab-timeline':
+      renderTimeline(ev, conflicts);
+      break;
+    case 'tab-vendors':
+      renderVendors(ev);
+      break;
+    case 'tab-guests':
+      renderGuests(ev);
+      break;
+  }
+  dirtyTabs.delete(tabId);
 }
 
 // Render GenAI Studio
 function renderAIStudio(ev) {
   const theme = ev.theme;
-  document.getElementById('aiThemeTitle').textContent = theme.title;
-  document.getElementById('aiThemeDecor').textContent = theme.decor;
-  document.getElementById('aiCocktails').textContent = theme.cocktails;
-  document.getElementById('aiCostTip').textContent = theme.costTip;
-  document.getElementById('aiInviteCopy').textContent = `"${theme.inviteCopy}"`;
-  document.getElementById('aiBudgetTypeName').textContent = ev.typeDisplay;
+  updateTextIfChanged(document.getElementById('aiThemeTitle'), theme.title);
+  updateTextIfChanged(document.getElementById('aiThemeDecor'), theme.decor);
+  updateTextIfChanged(document.getElementById('aiCocktails'), theme.cocktails);
+  updateTextIfChanged(document.getElementById('aiCostTip'), theme.costTip);
+  updateTextIfChanged(document.getElementById('aiInviteCopy'), `"${theme.inviteCopy}"`);
+  updateTextIfChanged(document.getElementById('aiBudgetTypeName'), ev.typeDisplay);
 
   // Render Palette
   const palContainer = document.getElementById('aiPaletteContainer');
-  palContainer.innerHTML = theme.palette.map(p => `
+  const paletteHTML = theme.palette.map(p => `
     <div class="color-swatch-item">
       <div class="swatch-circle" style="background-color: ${p.hex};"></div>
       <span>${p.name}</span>
     </div>
   `).join('');
+  updateInnerHTMLIfChanged(palContainer, paletteHTML);
 
   // Render Budget Breakdown
   const budgetList = document.getElementById('aiBudgetBreakdownList');
@@ -377,7 +476,7 @@ function renderAIStudio(ev) {
         { name: 'Emergency Contingency', pct: 10 }
       ];
 
-  budgetList.innerHTML = splits.map(s => {
+  const splitsHTML = splits.map(s => {
     const amt = (total * (s.pct / 100));
     return `
       <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 0.5rem 0.85rem; border-radius: 6px;">
@@ -386,6 +485,7 @@ function renderAIStudio(ev) {
       </div>
     `;
   }).join('');
+  updateInnerHTMLIfChanged(budgetList, splitsHTML);
 
   // Render AI Checkpoints
   const checkList = document.getElementById('aiChecklistItems');
@@ -396,17 +496,18 @@ function renderAIStudio(ev) {
     'Test microphone acoustics and ambient lighting levels at golden hour.',
     'Prepare designated sparkler / confetti departure kits with safety buckets.'
   ];
-  checkList.innerHTML = checkpoints.map(c => `
+  const checkpointsHTML = checkpoints.map(c => `
     <li style="display: flex; align-items: flex-start; gap: 0.5rem;">
       <span style="color: var(--accent-emerald);">✔</span> <span>${c}</span>
     </li>
   `).join('');
+  updateInnerHTMLIfChanged(checkList, checkpointsHTML);
 }
 
-// Render Expenses Table
+// Render Expenses Table with delegated data attributes
 function renderExpenses(ev) {
   const tbody = document.getElementById('expensesTableBody');
-  tbody.innerHTML = ev.expenses.map(exp => `
+  const html = ev.expenses.map(exp => `
     <tr>
       <td><strong>${exp.category}</strong></td>
       <td>${exp.desc}</td>
@@ -417,13 +518,14 @@ function renderExpenses(ev) {
         </span>
       </td>
       <td>
-        <button class="btn btn-secondary btn-sm" onclick="window.deleteExpense('${exp.id}')">Delete</button>
+        <button class="btn btn-secondary btn-sm" data-action="delete-expense" data-id="${exp.id}">Delete</button>
       </td>
     </tr>
   `).join('');
+  updateInnerHTMLIfChanged(tbody, html);
 }
 
-// Render Timeline
+// Render Timeline with delegated data attributes
 function renderTimeline(ev, conflicts) {
   const container = document.getElementById('timelineItemsContainer');
   const conflictIds = new Set();
@@ -434,7 +536,7 @@ function renderTimeline(ev, conflicts) {
 
   const sorted = [...ev.timeline].sort((a, b) => a.start.localeCompare(b.start));
 
-  container.innerHTML = sorted.map(item => {
+  const html = sorted.map(item => {
     const isConflict = conflictIds.has(item.id);
     return `
       <div class="timeline-item-card ${isConflict ? 'has-conflict' : ''}">
@@ -447,17 +549,18 @@ function renderTimeline(ev, conflicts) {
         </div>
         <div style="display: flex; align-items: center; gap: 0.75rem;">
           ${isConflict ? '<span class="badge badge-conflict">Overlap Alert!</span>' : ''}
-          <button class="btn btn-secondary btn-sm" onclick="window.deleteScheduleItem('${item.id}')">Remove</button>
+          <button class="btn btn-secondary btn-sm" data-action="delete-schedule" data-id="${item.id}">Remove</button>
         </div>
       </div>
     `;
   }).join('');
+  updateInnerHTMLIfChanged(container, html);
 }
 
-// Render Vendors
+// Render Vendors with delegated data attributes
 function renderVendors(ev) {
   const grid = document.getElementById('vendorGrid');
-  grid.innerHTML = ev.vendors.map(v => `
+  const html = ev.vendors.map(v => `
     <div class="ai-card">
       <span class="ai-card-badge" style="${v.booked ? 'background: rgba(16,185,129,0.18); color: #10b981;' : ''}">
         ${v.booked ? 'Booked & Confirmed' : 'Quote Requested'}
@@ -469,18 +572,19 @@ function renderVendors(ev) {
       <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">${v.notes}</p>
       <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-subtle); padding-top: 0.75rem;">
         <span style="font-weight: 700; color: #fff;">Est: ${formatCurrency(v.cost)}</span>
-        <button class="btn ${v.booked ? 'btn-secondary' : 'btn-primary'} btn-sm" onclick="window.toggleVendorBooking('${v.id}')">
+        <button class="btn ${v.booked ? 'btn-secondary' : 'btn-primary'} btn-sm" data-action="toggle-vendor" data-id="${v.id}">
           ${v.booked ? 'Cancel Booking' : 'Confirm Booking'}
         </button>
       </div>
     </div>
   `).join('');
+  updateInnerHTMLIfChanged(grid, html);
 }
 
 // Render Guests
 function renderGuests(ev) {
   const tbody = document.getElementById('guestsTableBody');
-  tbody.innerHTML = ev.guests.map(g => {
+  const html = ev.guests.map(g => {
     let badgeClass = 'badge-planning';
     if (g.status === 'attending') badgeClass = 'badge-confirmed';
     if (g.status === 'declined') badgeClass = 'badge-conflict';
@@ -502,65 +606,102 @@ function renderGuests(ev) {
       </tr>
     `;
   }).join('');
+  updateInnerHTMLIfChanged(tbody, html);
 
   // Populate guest dropdown for the simulation modal
-  const select = document.getElementById('rsvpGuestSelect');
+  const select = /** @type {HTMLSelectElement|null} */ (document.getElementById('rsvpGuestSelect'));
   if (select) {
-    select.innerHTML = ev.guests.map(g => `
+    const opts = ev.guests.map(g => `
       <option value="${g.id}">${g.name} (${g.status.toUpperCase()})</option>
     `).join('');
+    updateInnerHTMLIfChanged(select, opts);
   }
 }
 
-// Global actions exposed to window for inline onclick handlers
-window.deleteExpense = function(id) {
+// High-performance Event Delegation Listeners (Avoids inline onclick thrashing)
+document.getElementById('expensesTableBody')?.addEventListener('click', (e) => {
+  const target = /** @type {HTMLElement|null} */ (e.target);
+  const btn = target?.closest('[data-action="delete-expense"]');
+  if (btn) {
+    const id = btn.getAttribute('data-id');
+    if (id) deleteExpenseById(id);
+  }
+});
+
+document.getElementById('timelineItemsContainer')?.addEventListener('click', (e) => {
+  const target = /** @type {HTMLElement|null} */ (e.target);
+  const btn = target?.closest('[data-action="delete-schedule"]');
+  if (btn) {
+    const id = btn.getAttribute('data-id');
+    if (id) deleteScheduleItemById(id);
+  }
+});
+
+document.getElementById('vendorGrid')?.addEventListener('click', (e) => {
+  const target = /** @type {HTMLElement|null} */ (e.target);
+  const btn = target?.closest('[data-action="toggle-vendor"]');
+  if (btn) {
+    const id = btn.getAttribute('data-id');
+    if (id) toggleVendorBookingById(id);
+  }
+});
+
+function deleteExpenseById(id) {
   const ev = getCurrentEvent();
   ev.expenses = ev.expenses.filter(e => e.id !== id);
+  markTabsDirty('tab-budget');
   saveAppData();
   renderApp();
   showToast("Expense removed successfully.", "info");
-};
+}
 
-window.deleteScheduleItem = function(id) {
+function deleteScheduleItemById(id) {
   const ev = getCurrentEvent();
   ev.timeline = ev.timeline.filter(t => t.id !== id);
+  markTabsDirty('tab-timeline');
   saveAppData();
   renderApp();
   showToast("Schedule slot removed.", "info");
-};
+}
 
-window.toggleVendorBooking = function(id) {
+function toggleVendorBookingById(id) {
   const ev = getCurrentEvent();
   const v = ev.vendors.find(item => item.id === id);
   if (v) {
     v.booked = !v.booked;
+    markTabsDirty('tab-vendors');
     saveAppData();
     renderApp();
     showToast(v.booked ? `Booking confirmed for ${v.name}!` : `Booking cancelled for ${v.name}.`, v.booked ? "success" : "info");
   }
-};
+}
 
-// Auto-resolve overlap handler
+// Backward compatibility window exposures
+/** @type {any} */ (window).deleteExpense = deleteExpenseById;
+/** @type {any} */ (window).deleteScheduleItem = deleteScheduleItemById;
+/** @type {any} */ (window).toggleVendorBooking = toggleVendorBookingById;
+
+// Auto-resolve overlap handler with algorithms.js resolver
 document.getElementById('btnAutoResolveConflict')?.addEventListener('click', () => {
   const ev = getCurrentEvent();
   const conflicts = detectScheduleConflicts(ev.timeline);
   if (conflicts.length > 0) {
-    const pair = conflicts[0];
-    // Bump item B start to item A end
-    pair.itemB.start = pair.itemA.end;
-    // Calculate new end time: 1 hour later
-    const [h, m] = pair.itemB.start.split(':').map(Number);
-    const newEndH = Math.min(23, h + 1);
-    pair.itemB.end = `${String(newEndH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    const conflict = conflicts[0];
+    const resolved = autoResolveConflict(conflict);
+    conflict.itemB.start = resolved.newStart;
+    conflict.itemB.end = resolved.newEnd;
+    markTabsDirty('tab-timeline');
     saveAppData();
     renderApp();
-    showToast("Schedule overlap auto-resolved! Schedule updated.", "success");
+    showToast(`Schedule overlap auto-resolved! Shifted to ${resolved.newStart}-${resolved.newEnd}`, "success");
   }
 });
 
 // Event Switcher Listener
 document.getElementById('eventSelect')?.addEventListener('change', (e) => {
-  appData.currentEventId = e.target.value;
+  const target = /** @type {HTMLSelectElement} */ (e.target);
+  appData.currentEventId = target.value;
+  markTabsDirty();
   saveAppData();
   renderApp();
   showToast(`Switched active event to: ${getCurrentEvent().name}`, 'info');
@@ -568,12 +709,14 @@ document.getElementById('eventSelect')?.addEventListener('change', (e) => {
 
 // Currency Switcher
 document.getElementById('currencySelector')?.addEventListener('change', (e) => {
-  appData.currency = e.target.value;
+  const target = /** @type {HTMLSelectElement} */ (e.target);
+  appData.currency = target.value;
+  markTabsDirty('tab-ai', 'tab-budget', 'tab-vendors');
   renderApp();
   showToast(`Currency changed to ${appData.currency}`, 'info');
 });
 
-// Tab Navigation Listener
+// Tab Navigation Listener with lazy rendering
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => {
@@ -584,8 +727,17 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
     btn.classList.add('active');
     btn.setAttribute('aria-selected', 'true');
-    const target = document.getElementById(btn.getAttribute('data-tab'));
-    if (target) target.classList.add('active');
+    const tabName = btn.getAttribute('data-tab');
+    if (tabName) {
+      currentActiveTab = tabName;
+      const target = document.getElementById(tabName);
+      if (target) target.classList.add('active');
+
+      // Lazily render view if dirty
+      if (dirtyTabs.has(tabName)) {
+        renderSubView(tabName);
+      }
+    }
   });
 });
 
@@ -602,7 +754,8 @@ function closeModal(id) {
 
 document.querySelectorAll('[data-close]').forEach(btn => {
   btn.addEventListener('click', () => {
-    closeModal(btn.getAttribute('data-close'));
+    const modalId = btn.getAttribute('data-close');
+    if (modalId) closeModal(modalId);
   });
 });
 
@@ -616,11 +769,17 @@ document.getElementById('btnSimulateRSVP')?.addEventListener('click', () => open
 // 1. New Event
 document.getElementById('btnSubmitNewEvent')?.addEventListener('click', (e) => {
   e.preventDefault();
-  const name = document.getElementById('newEvName').value.trim();
-  const type = document.getElementById('newEvType').value;
-  const venue = document.getElementById('newEvVenue').value.trim();
-  const date = document.getElementById('newEvDate').value;
-  const budget = parseFloat(document.getElementById('newEvBudget').value) || 10000;
+  const nameInput = /** @type {HTMLInputElement} */ (document.getElementById('newEvName'));
+  const typeInput = /** @type {HTMLSelectElement} */ (document.getElementById('newEvType'));
+  const venueInput = /** @type {HTMLInputElement} */ (document.getElementById('newEvVenue'));
+  const dateInput = /** @type {HTMLInputElement} */ (document.getElementById('newEvDate'));
+  const budgetInput = /** @type {HTMLInputElement} */ (document.getElementById('newEvBudget'));
+
+  const name = nameInput?.value.trim();
+  const type = typeInput?.value;
+  const venue = venueInput?.value.trim();
+  const date = dateInput?.value;
+  const budget = parseFloat(budgetInput?.value) || 10000;
 
   if (!name || !venue || !date) {
     showToast("Please fill in all event fields.", "warning");
@@ -628,6 +787,7 @@ document.getElementById('btnSubmitNewEvent')?.addEventListener('click', (e) => {
   }
 
   const id = `event-${Date.now()}`;
+  /** @type {Record<string, string>} */
   const typeMap = {
     wedding: '💒 Wedding Ceremony',
     birthday: '🎂 Milestone Birthday',
@@ -676,15 +836,18 @@ document.getElementById('btnSubmitNewEvent')?.addEventListener('click', (e) => {
   };
 
   appData.currentEventId = id;
+  markTabsDirty();
   saveAppData();
 
   // Update selector
   const select = document.getElementById('eventSelect');
-  const opt = document.createElement('option');
-  opt.value = id;
-  opt.textContent = `${name} (${type.toUpperCase()})`;
-  opt.selected = true;
-  select.appendChild(opt);
+  if (select) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = `${name} (${type.toUpperCase()})`;
+    opt.selected = true;
+    select.appendChild(opt);
+  }
 
   closeModal('modalNewEvent');
   renderApp();
@@ -694,10 +857,15 @@ document.getElementById('btnSubmitNewEvent')?.addEventListener('click', (e) => {
 // 2. Add Expense
 document.getElementById('btnSubmitExpense')?.addEventListener('click', (e) => {
   e.preventDefault();
-  const category = document.getElementById('expCategory').value;
-  const desc = document.getElementById('expDesc').value.trim();
-  const amount = parseFloat(document.getElementById('expAmount').value);
-  const paid = document.getElementById('expPaid').checked;
+  const catInput = /** @type {HTMLSelectElement} */ (document.getElementById('expCategory'));
+  const descInput = /** @type {HTMLInputElement} */ (document.getElementById('expDesc'));
+  const amtInput = /** @type {HTMLInputElement} */ (document.getElementById('expAmount'));
+  const paidInput = /** @type {HTMLInputElement} */ (document.getElementById('expPaid'));
+
+  const category = catInput?.value;
+  const desc = descInput?.value.trim();
+  const amount = parseFloat(amtInput?.value);
+  const paid = Boolean(paidInput?.checked);
 
   if (!desc || isNaN(amount) || amount <= 0) {
     showToast("Please provide a valid description and positive amount.", "warning");
@@ -713,9 +881,11 @@ document.getElementById('btnSubmitExpense')?.addEventListener('click', (e) => {
     paid
   });
 
+  markTabsDirty('tab-budget');
   saveAppData();
   closeModal('modalAddExpense');
-  document.getElementById('formAddExpense').reset();
+  const form = /** @type {HTMLFormElement|null} */ (document.getElementById('formAddExpense'));
+  if (form) form.reset();
   renderApp();
   showToast(`Recorded expense: ${desc} (${formatCurrency(amount)})`, "success");
 });
@@ -723,10 +893,15 @@ document.getElementById('btnSubmitExpense')?.addEventListener('click', (e) => {
 // 3. Add Schedule Slot
 document.getElementById('btnSubmitSchedule')?.addEventListener('click', (e) => {
   e.preventDefault();
-  const title = document.getElementById('schedTitle').value.trim();
-  const location = document.getElementById('schedLocation').value.trim();
-  const start = document.getElementById('schedStart').value;
-  const end = document.getElementById('schedEnd').value;
+  const titleInput = /** @type {HTMLInputElement} */ (document.getElementById('schedTitle'));
+  const locInput = /** @type {HTMLInputElement} */ (document.getElementById('schedLocation'));
+  const startInput = /** @type {HTMLInputElement} */ (document.getElementById('schedStart'));
+  const endInput = /** @type {HTMLInputElement} */ (document.getElementById('schedEnd'));
+
+  const title = titleInput?.value.trim();
+  const location = locInput?.value.trim();
+  const start = startInput?.value;
+  const end = endInput?.value;
 
   if (!title || !location || !start || !end) {
     showToast("Please complete all schedule fields.", "warning");
@@ -747,9 +922,11 @@ document.getElementById('btnSubmitSchedule')?.addEventListener('click', (e) => {
     end
   });
 
+  markTabsDirty('tab-timeline');
   saveAppData();
   closeModal('modalAddSchedule');
-  document.getElementById('formAddSchedule').reset();
+  const form = /** @type {HTMLFormElement|null} */ (document.getElementById('formAddSchedule'));
+  if (form) form.reset();
   renderApp();
   showToast(`Added schedule slot: ${title}`, "success");
 });
@@ -757,10 +934,15 @@ document.getElementById('btnSubmitSchedule')?.addEventListener('click', (e) => {
 // 4. Submit Guest RSVP Simulation
 document.getElementById('btnSubmitRSVP')?.addEventListener('click', (e) => {
   e.preventDefault();
-  const guestId = document.getElementById('rsvpGuestSelect').value;
-  const statusChoice = document.querySelector('input[name="rsvpStatusChoice"]:checked').value;
-  const plusOnes = parseInt(document.getElementById('rsvpPlusOnes').value) || 0;
-  const dietary = document.getElementById('rsvpDietary').value.trim();
+  const guestSelect = /** @type {HTMLSelectElement} */ (document.getElementById('rsvpGuestSelect'));
+  const checkedChoice = /** @type {HTMLInputElement|null} */ (document.querySelector('input[name="rsvpStatusChoice"]:checked'));
+  const plusInput = /** @type {HTMLInputElement} */ (document.getElementById('rsvpPlusOnes'));
+  const dietaryInput = /** @type {HTMLInputElement} */ (document.getElementById('rsvpDietary'));
+
+  const guestId = guestSelect?.value;
+  const statusChoice = checkedChoice ? checkedChoice.value : 'attending';
+  const plusOnes = parseInt(plusInput?.value) || 0;
+  const dietary = dietaryInput?.value.trim();
 
   const ev = getCurrentEvent();
   const guest = ev.guests.find(g => g.id === guestId);
@@ -769,6 +951,7 @@ document.getElementById('btnSubmitRSVP')?.addEventListener('click', (e) => {
     guest.plusOnes = plusOnes;
     if (dietary) guest.dietary = dietary;
 
+    markTabsDirty('tab-guests');
     saveAppData();
     closeModal('modalSimulateRSVP');
     renderApp();
@@ -811,23 +994,23 @@ function executeCopilot(promptText) {
 
   const box = document.getElementById('aiCopilotResponseBox');
   const textElem = document.getElementById('aiCopilotResponseText');
-  box.style.display = 'block';
-  textElem.textContent = reply;
+  if (box) box.style.display = 'block';
+  updateTextIfChanged(textElem, reply);
   showToast("Festora AI generated advice.", "info");
 }
 
 document.getElementById('btnSendCopilot')?.addEventListener('click', () => {
-  const input = document.getElementById('aiCopilotInput');
-  const text = input.value.trim();
+  const input = /** @type {HTMLInputElement|null} */ (document.getElementById('aiCopilotInput'));
+  const text = input?.value.trim();
   if (text) {
     executeCopilot(text);
-    input.value = '';
+    if (input) input.value = '';
   }
 });
 
 document.getElementById('aiCopilotInput')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
-    document.getElementById('btnSendCopilot').click();
+    document.getElementById('btnSendCopilot')?.click();
   }
 });
 
@@ -835,7 +1018,7 @@ document.getElementById('aiCopilotInput')?.addEventListener('keydown', (e) => {
 document.querySelectorAll('.ai-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     const prompt = chip.getAttribute('data-prompt');
-    executeCopilot(prompt);
+    if (prompt) executeCopilot(prompt);
   });
 });
 
@@ -845,6 +1028,7 @@ document.getElementById('btnRegenerateAI')?.addEventListener('click', () => {
   setTimeout(() => {
     const ev = getCurrentEvent();
     ev.theme.title = ev.type === 'wedding' ? 'Velvet Moon & Golden Radiance' : 'Electric Sunset & Gilded Disco';
+    markTabsDirty('tab-ai');
     saveAppData();
     renderApp();
     showToast("New personalized theme & concepts generated!", "success");
@@ -853,7 +1037,8 @@ document.getElementById('btnRegenerateAI')?.addEventListener('click', () => {
 
 // Copy Invite Copy to Clipboard
 document.getElementById('btnCopyInvite')?.addEventListener('click', () => {
-  const text = document.getElementById('aiInviteCopy').innerText;
+  const elem = document.getElementById('aiInviteCopy');
+  const text = elem ? elem.innerText : '';
   navigator.clipboard.writeText(text).then(() => {
     showToast("Invitation wording copied to clipboard!", "success");
   });
@@ -862,11 +1047,10 @@ document.getElementById('btnCopyInvite')?.addEventListener('click', () => {
 // Export / Print Plan
 document.getElementById('btnPrintPlan')?.addEventListener('click', () => {
   const ev = getCurrentEvent();
-  const conflicts = detectScheduleConflicts(ev.timeline);
-  const totalSpent = ev.expenses.reduce((sum, item) => sum + item.amount, 0);
+  const summary = calculateBudgetSummary(ev.budget, ev.expenses);
 
   const preview = document.getElementById('printPlanContent');
-  preview.innerHTML = `
+  const previewHTML = `
     <div style="border-bottom: 2px solid var(--accent-gold); padding-bottom: 1rem; margin-bottom: 1.25rem;">
       <h2 style="font-size: 1.6rem; color: #fff;">${ev.name}</h2>
       <div style="color: var(--text-secondary);">Venue: <strong>${ev.venue}</strong> | Date: <strong>${ev.date}</strong> | Status: <strong>${ev.status.toUpperCase()}</strong></div>
@@ -876,7 +1060,7 @@ document.getElementById('btnPrintPlan')?.addEventListener('click', () => {
     <p style="margin-bottom: 1.25rem;">${ev.theme.title} — ${ev.theme.decor}</p>
 
     <h3 style="color: var(--text-gold); font-size: 1.1rem; margin-bottom: 0.5rem;">💵 Budget Summary</h3>
-    <p style="margin-bottom: 1.25rem;">Total Budget: <strong>${formatCurrency(ev.budget)}</strong> | Allocated Expenses: <strong>${formatCurrency(totalSpent)}</strong> | Remaining: <strong>${formatCurrency(ev.budget - totalSpent)}</strong></p>
+    <p style="margin-bottom: 1.25rem;">Total Budget: <strong>${formatCurrency(ev.budget)}</strong> | Allocated Expenses: <strong>${formatCurrency(summary.totalSpent)}</strong> | Remaining: <strong>${formatCurrency(summary.remainingBudget)}</strong></p>
 
     <h3 style="color: var(--text-gold); font-size: 1.1rem; margin-bottom: 0.5rem;">⏱️ Run-of-Show Day Timeline</h3>
     <ul style="margin-bottom: 1.25rem; padding-left: 1.2rem;">
@@ -886,7 +1070,7 @@ document.getElementById('btnPrintPlan')?.addEventListener('click', () => {
     <h3 style="color: var(--text-gold); font-size: 1.1rem; margin-bottom: 0.5rem;">👥 Guest List (${ev.guests.length} Invited)</h3>
     <p>Confirmed Attendees: <strong>${ev.guests.filter(g => g.status === 'attending').length}</strong></p>
   `;
-
+  updateInnerHTMLIfChanged(preview, previewHTML);
   openModal('modalPrintPlan');
 });
 
@@ -913,5 +1097,5 @@ document.getElementById('btnExportGuestsCSV')?.addEventListener('click', () => {
 // Initialize on DOM load
 window.addEventListener('DOMContentLoaded', () => {
   renderApp();
-  console.log("Festora GenAI Planning Assistant initialized successfully.");
+  console.log("Festora GenAI Planning Assistant initialized successfully with optimized reactive engine.");
 });

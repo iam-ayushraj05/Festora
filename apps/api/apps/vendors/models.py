@@ -54,6 +54,10 @@ class QuoteRequest(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["event", "status"]),
+            models.Index(fields=["vendor", "status"]),
+        ]
 
     def __str__(self):
         return f"Quote: {self.vendor.name} for {self.event.name}"
@@ -79,6 +83,10 @@ class Booking(models.Model):
 
     class Meta:
         ordering = ["start_time"]
+        indexes = [
+            models.Index(fields=["vendor", "status", "start_time", "end_time"]),
+            models.Index(fields=["event", "status"]),
+        ]
 
     def __str__(self):
         return f"Booking: {self.vendor.name} ({self.status})"

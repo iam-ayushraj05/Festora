@@ -1,6 +1,8 @@
 import pytest
+
 from apps.events.models import Event
-from apps.guests.models import Guest, InviteToken, RSVP, RSVPStatus
+from apps.guests.models import RSVP, Guest, InviteToken, RSVPStatus
+
 
 @pytest.mark.django_db
 class TestRSVPSecurity:
@@ -11,9 +13,7 @@ class TestRSVPSecurity:
         token_obj, raw_token = InviteToken.create_for_guest(guest)
 
         rsvp = RSVP.objects.create(
-            guest=guest,
-            response=RSVPStatus.ATTENDING,
-            notes="Looking forward to the celebration!"
+            guest=guest, response=RSVPStatus.ATTENDING, notes="Looking forward to the celebration!"
         )
         assert rsvp.responded_at is not None
         assert rsvp.response == RSVPStatus.ATTENDING

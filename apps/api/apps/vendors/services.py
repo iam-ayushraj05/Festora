@@ -1,9 +1,12 @@
 from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.utils import timezone
-from .models import Booking, BookingStatus, Vendor
+
 from apps.events.models import Event
+
+from .models import Booking, BookingStatus, Vendor
+
 
 def create_booking_atomic(
     event: Event,
@@ -46,6 +49,7 @@ def create_booking_atomic(
             deposit_paid=deposit_paid,
         )
         return booking
+
 
 def check_vendor_availability(vendor: Vendor, start_time, end_time, exclude_booking_id=None) -> bool:
     """Quick indexed availability check for vendor booking window."""

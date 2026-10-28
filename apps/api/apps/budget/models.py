@@ -17,6 +17,9 @@ class BudgetCategory(models.Model):
     class Meta:
         ordering = ["name"]
         verbose_name_plural = "Budget categories"
+        indexes = [
+            models.Index(fields=["event", "name"]),
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.event.name}"
@@ -44,6 +47,10 @@ class Expense(models.Model):
 
     class Meta:
         ordering = ["-date", "-created_at"]
+        indexes = [
+            models.Index(fields=["category", "paid"]),
+            models.Index(fields=["date", "amount"]),
+        ]
 
     def __str__(self):
         return f"{self.description}: {self.amount} {self.currency}"

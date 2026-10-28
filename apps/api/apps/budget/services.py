@@ -14,7 +14,8 @@ def calculate_event_budget_summary(event: Event) -> dict[str, Any]:
     category_summaries = []
 
     for cat in categories:
-        cat_spent = sum((exp.amount for exp in cat.expenses.all()), Decimal("0.00"))
+        cat_expenses = list(cat.expenses.all())
+        cat_spent = sum((exp.amount for exp in cat_expenses), Decimal("0.00"))
         total_spent += cat_spent
         category_summaries.append(
             {
@@ -23,7 +24,7 @@ def calculate_event_budget_summary(event: Event) -> dict[str, Any]:
                 "estimated_amount": str(cat.estimated_amount),
                 "spent_amount": str(cat_spent),
                 "remaining": str(cat.estimated_amount - cat_spent),
-                "expense_count": cat.expenses.count(),
+                "expense_count": len(cat_expenses),
             }
         )
 

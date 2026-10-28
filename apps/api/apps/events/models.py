@@ -41,6 +41,10 @@ class Event(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "start_date"]),
+            models.Index(fields=["event_type", "created_at"]),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.get_event_type_display()})"
@@ -84,6 +88,10 @@ class EventMember(models.Model):
 
     class Meta:
         unique_together = ("event", "user")
+        indexes = [
+            models.Index(fields=["event", "role"]),
+            models.Index(fields=["user", "role"]),
+        ]
 
     def __str__(self):
         return f"{self.user.email} - {self.event.name} ({self.role})"

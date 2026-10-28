@@ -1,8 +1,11 @@
-import pytest
 from datetime import timedelta
+
+import pytest
 from django.utils import timezone
+
 from apps.events.models import Event, EventMember
 from apps.guests.models import Guest, InviteToken
+
 
 @pytest.mark.django_db
 class TestInviteTokensSecurity:

@@ -40,6 +40,10 @@ class Task(models.Model):
 
     class Meta:
         ordering = ["due_date", "-priority"]
+        indexes = [
+            models.Index(fields=["event", "status", "priority"]),
+            models.Index(fields=["assigned_to", "status"]),
+        ]
 
     def __str__(self):
         return f"{self.title} ({self.status})"
@@ -61,6 +65,9 @@ class ScheduleItem(models.Model):
 
     class Meta:
         ordering = ["start_time"]
+        indexes = [
+            models.Index(fields=["event", "start_time", "end_time"]),
+        ]
 
     def __str__(self):
         return f"{self.title} ({self.start_time.strftime('%H:%M')} - {self.end_time.strftime('%H:%M')})"

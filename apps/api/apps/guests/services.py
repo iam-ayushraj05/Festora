@@ -1,18 +1,24 @@
 import csv
 import hashlib
 import io
+import secrets
+import uuid
+from datetime import timedelta
 from typing import Any
 
 from django.db import transaction
+from django.utils import timezone
 
 from .models import Guest, InviteToken
 
 
 def import_guests_from_csv(event, file_content: str) -> tuple[int, list[dict[str, Any]]]:
-    """Import guests from CSV content with streaming parsing and validation."""
+    """Import guests from CSV content with streaming parsing, validation, and batch persistence."""
     reader = csv.DictReader(io.StringIO(file_content))
     created_count = 0
     errors = []
+    guests_to_create = []
+    tokens_to_create = []
 
     with transaction.atomic():
         for row_num, row in enumerate(reader, start=2):
@@ -36,16 +42,34 @@ def import_guests_from_csv(event, file_content: str) -> tuple[int, list[dict[str
                 )
                 continue
 
-            guest = Guest.objects.create(
+            guest_id = uuid.uuid4()
+            guest = Guest(
+                id=guest_id,
                 event=event,
                 name=name,
                 email=email,
                 plus_ones=plus_ones,
                 dietary_requirements=dietary,
             )
-            # Create invite token
-            InviteToken.create_for_guest(guest)
-            created_count += 1
+            guests_to_create.append(guest)
+
+            raw_token = secrets.token_urlsafe(32)
+            token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+            expires_at = timezone.now() + timedelta(days=30)
+            tokens_to_create.append(
+                InviteToken(
+                    id=uuid.uuid4(),
+                    guest_id=guest_id,
+                    token_hash=token_hash,
+                    expires_at=expires_at,
+                    revoked=False,
+                )
+            )
+
+        if guests_to_create:
+            Guest.objects.bulk_create(guests_to_create, batch_size=500)
+            InviteToken.objects.bulk_create(tokens_to_create, batch_size=500)
+            created_count = len(guests_to_create)
 
     return created_count, errors
 
