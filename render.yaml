@@ -1,4 +1,5 @@
 services:
+  # Backend API
   - type: web
     name: festora-api
     runtime: python
@@ -11,7 +12,7 @@ services:
       - key: PYTHON_VERSION
         value: 3.12.8
       - key: DJANGO_SETTINGS_MODULE
-        value: config.settings.production
+        value: config.settings
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
@@ -28,6 +29,19 @@ services:
         value: None
       - key: CSRF_COOKIE_SAMESITE
         value: None
+
+  # Frontend Web Client
+  - type: web
+    name: festora-web
+    runtime: static
+    rootDir: apps/web
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
 
 databases:
   - name: festora-db
